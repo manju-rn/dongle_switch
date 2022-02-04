@@ -132,53 +132,6 @@ ZB_HA_DECLARE_ON_OFF_OUTPUT_EP(on_off_output_ep, HA_SWITCH_ENDPOINT, on_off_outp
 
 ZB_HA_DECLARE_ON_OFF_OUTPUT_CTX(on_off_output_ctx, on_off_output_ep);
 
-static void configure_reporting_locally(void)
-{
-  zb_zcl_reporting_info_t rep_info;
-  zb_uint16_t coordinator_address = 0x0000;
-  memset(&rep_info, 0, sizeof(rep_info));
-
-  rep_info.direction      = ZB_ZCL_CONFIGURE_REPORTING_SEND_REPORT;
-  rep_info.ep             = HA_SWITCH_ENDPOINT;
-  rep_info.cluster_id     = ZB_ZCL_CLUSTER_ID_ON_OFF;
-  rep_info.cluster_role   = ZB_ZCL_CLUSTER_SERVER_ROLE;
-  rep_info.attr_id        = ZB_ZCL_ATTR_ON_OFF_ON_OFF_ID;
-
-  rep_info.u.send_info.min_interval = 0x000;
-  rep_info.u.send_info.max_interval = 0x000;  
-  rep_info.u.send_info.delta.u8     = 1;
-   
-  rep_info.dst.short_addr = coordinator_address; //Hex 
-  rep_info.dst.endpoint   = 12 ;     //Decimal 
-  rep_info.dst.profile_id = ZB_AF_HA_PROFILE_ID ;
-
-  zb_zcl_put_reporting_info(&rep_info,ZB_TRUE);
-}
-
-void configure_attr_reporting(zb_bufid_t bufid)
-{
-    zb_uint8_t * cmd_ptr;
-	zb_uint16_t coordinator_address = 0x0000;
-    // zb_uint8_t dst_ep = HA_SWITCH_ENDPOINT;
-
-    ZB_ZCL_GENERAL_INIT_CONFIGURE_REPORTING_SRV_REQ(bufid,
-                                                    cmd_ptr,
-                                                    ZB_ZCL_ENABLE_DEFAULT_RESPONSE);
- 
-    ZB_ZCL_GENERAL_ADD_SEND_REPORT_CONFIGURE_REPORTING_REQ(cmd_ptr, 
-	                                                       ZB_ZCL_ATTR_ON_OFF_ON_OFF_ID, 
-														   ZB_ZCL_ATTR_ON_OFF_ON_OFF_ID, 
-														   0,
-														   0, 
-														   0);
- 
-    ZB_ZCL_GENERAL_SEND_CONFIGURE_REPORTING_REQ(bufid, cmd_ptr, coordinator_address, ZB_APS_ADDR_MODE_16_ENDP_PRESENT,
-                                                HA_SWITCH_ENDPOINT, HA_SWITCH_ENDPOINT,
-                                                ZB_AF_HA_PROFILE_ID, ZB_ZCL_CLUSTER_ID_ON_OFF, NULL);
-
-	LOG_INF("Attribute Reporting configured");
-}
-
 /**@brief Callback for button events.
  *
  * @param[in]   button_state  Bitmask containing buttons state.
@@ -198,20 +151,16 @@ static void button_changed(uint32_t button_state, uint32_t has_changed)
 
  	if (buttons & TOGGLE_SWITCH)  // Manju - Toggle the LED bulb by getting the context from the Zigbee object
 	{
-		// LOG_INF("Current LED setting is %d", dev_ctx.on_off_attr.on_off);
-
+		// Toggle the values to create a change in the value
 		if(dev_ctx.on_off_attr.on_off)
 		{
-			// on_off_set_value(ZB_FALSE, HA_BUTTON_ENDPOINT);
 			cmd_id = ZB_ZCL_CMD_ON_OFF_OFF_ID;
 		}
 		else
 		{
-			// on_off_set_value(ZB_TRUE, HA_BUTTON_ENDPOINT);
 			cmd_id = ZB_ZCL_CMD_ON_OFF_ON_ID;
 		}
-		// cmd_id = ZB_ZCL_CMD_ON_OFF_ON_ID;
-		LOG_INF("Value update is %d", cmd_id);
+		LOG_INF("Update value of the ONOFF is %d", cmd_id);
 				
 		zb_err_code = zb_buf_get_out_delayed_ext(switch_send_on_off, cmd_id, 0);
 		ZB_ERROR_CHECK(zb_err_code);
@@ -239,12 +188,12 @@ static void configure_gpio(void)
  */
 static void switch_send_on_off(zb_bufid_t bufid, zb_uint16_t cmd_id)
 {
-	LOG_INF("Send ON/OFF command: %d", cmd_id);
 	zb_uint16_t coordinator_address = 0x0000;
 	dev_ctx.on_off_attr.on_off = (zb_bool_t)cmd_id;	
 
-	LOG_INF("Check Here:");
+	LOG_INF("Update the ONOFF attribute");
 
+	// Update the ONOFF Attribute with the the changed value
 	ZB_ZCL_SET_ATTRIBUTE(
 		HA_SWITCH_ENDPOINT,
 		ZB_ZCL_CLUSTER_ID_ON_OFF,
@@ -263,7 +212,6 @@ static void switch_send_on_off(zb_bufid_t bufid, zb_uint16_t cmd_id)
 	// 			ZB_ZCL_ENABLE_DEFAULT_RESPONSE,
 	// 			cmd_id,
 	// 			NULL);
-
 
 	LOG_INF("Send ON/OFF command Completed: %d", cmd_id);
 }
@@ -323,21 +271,6 @@ static void switch_clusters_attr_init(void)
 		ZB_ZCL_ATTR_ON_OFF_ON_OFF_ID,
 		(zb_uint8_t *)&dev_ctx.on_off_attr.on_off,
 		ZB_FALSE);
-	
-	// zb_ret_t status = zb_zcl_start_attr_reporting(
-	// 	HA_SWITCH_ENDPOINT, 
-	// 	ZB_ZCL_CLUSTER_ID_ON_OFF, 
-	// 	ZB_ZCL_CLUSTER_SERVER_ROLE, 
-	// 	ZB_ZCL_ATTR_ON_OFF_ON_OFF_ID);
-	
-	// if(status == RET_OK)
-	// {
-	// 	LOG_INF("Reporting successfully configured");
-	// }
-	// else
-	// {
-	// 	LOG_INF("Reporting IS NOT configured");
-	// }
 }
 
 /**@brief Callback function for handling ZCL commands.
@@ -405,9 +338,6 @@ void zboss_signal_handler(zb_bufid_t bufid)
 	zb_zdo_app_signal_type_t sig = zb_get_app_signal(bufid, &p_sg_p);
 	zb_ret_t status = ZB_GET_APP_SIGNAL_STATUS(bufid);
 
-	/* Update network status LED */
-	// zigbee_led_status_update(bufid, ZIGBEE_NETWORK_STATE_LED);
-
 	switch (sig) 
 	{
 		case ZB_BDB_SIGNAL_DEVICE_REBOOT:
@@ -418,9 +348,6 @@ void zboss_signal_handler(zb_bufid_t bufid)
 			if (status == RET_OK) 
 			{
 				LOG_INF("Steering Completed. Going ahead with reporting configuration");
-				// configure_reporting_locally();
-				// zb_buf_get_out_delayed(configure_attr_reporting);
-				// zb_zcl_start_attr_reporting(HA_SWITCH_ENDPOINT, ZB_ZCL_CLUSTER_ID_ON_OFF, ZB_ZCL_CLUSTER_SERVER_ROLE, ZB_ZCL_ATTR_ON_OFF_ON_OFF_ID);
 			}
 			break;
 		default:
@@ -466,12 +393,6 @@ void main(void)
 	ZB_AF_REGISTER_DEVICE_CTX(&on_off_output_ctx);
 
 	switch_clusters_attr_init();
-	// configure_reporting_locally();
-
-	/* Initialize ZCL scene table */
-	// zcl_scenes_init();
-
-	LOG_INF("ZCL scenes initiated");
 
 	/* Settings should be loaded after zcl_scenes_init */
 	err = settings_load();
@@ -481,7 +402,6 @@ void main(void)
 
 	/* Start Zigbee default thread */
 	zigbee_enable();
-
 
 	LOG_INF("Manju Switch example started");
 
