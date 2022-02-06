@@ -1,0 +1,52 @@
+/*
+ * Copyright (c) 2020 Nordic Semiconductor ASA
+ *
+ * SPDX-License-Identifier: LicenseRef-Nordic-5-Clause
+ */
+
+ / {
+	chosen {
+		zephyr,entropy = &rng;
+	};
+
+	pwmleds {
+		// pwm_led3: pwm_led_3 {
+		// 	pwms = <&pwm0 16>;
+		// };
+		// // Manju - GPIO Port 0.02 in NRF52840
+		// pwm_led4: pwm_led_4 {
+		// 	pwms = <&pwm0 02>;
+		// };
+		pwm_led3: pwm_led_3 {
+			pwms = <&pwm0 8>; // RED LED
+		};
+		pwm_led4: pwm_led_4 {
+			pwms = <&pwm0 12>; // BLUE LED
+		};		
+	};
+
+	buttons {
+		compatible = "gpio-keys";
+		rst_button0: rst_button_0 {
+			gpios = <&gpio0 19 (GPIO_PULL_UP | GPIO_ACTIVE_LOW)>;
+			label = "Dongle Button";
+		};
+	};
+
+	aliases {
+		rst0 = &rst_button0;
+	};
+
+};
+
+&pwm0 
+{
+	// ch1-pin = <16>;
+	ch1-pin = <8>;
+	// ch1-inverted;
+
+	// Manju - Definition for the GPIO 0.02 in NRF52840
+	// ch2-pin = <02>;
+	ch2-pin = <12>;
+	// ch2-inverted;
+};

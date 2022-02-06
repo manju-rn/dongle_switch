@@ -22,7 +22,7 @@ endif()
 # Manju - Additional for Dongle - End
 find_package(Zephyr REQUIRED HINTS $ENV{ZEPHYR_BASE})
 
-project("Zigbee light bulb with Scenes")
+project("Zigbee Switch")
 
 # NORDIC SDK APP START
 target_sources(app PRIVATE

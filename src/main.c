@@ -3,6 +3,7 @@
 #include <device.h>
 #include <soc.h>
 #include <drivers/pwm.h>
+#include <drivers/gpio.h>
 #include <logging/log.h>
 #include <dk_buttons_and_leds.h>
 #include <settings/settings.h>
@@ -55,6 +56,11 @@
 
 #define TOGGLE_SWITCH					DK_BTN3_MSK
 
+#define SW0_NODE	DT_ALIAS(sw0)
+#if !DT_NODE_HAS_STATUS(SW0_NODE, okay)
+#error "Unsupported board: sw0 devicetree alias is not defined"
+#endif
+
 /* Nordic PWM nodes don't have flags cells in their specifiers, so
  * this is just future-proofing.
  */
@@ -67,10 +73,11 @@
 #error Define ZB_END_DEVICE_ROLE to compile enddevice source code.
 #endif
 
+static const struct gpio_dt_spec dongleButton = GPIO_DT_SPEC_GET_OR(SW0_NODE, gpios, {0});
+static struct gpio_callback button_cb_data;
 // Manju - Declare the On_off_set_value function
-static void on_off_set_value(zb_bool_t on, zb_uint8_t endpoint_invoked);
+// static void on_off_set_value(zb_bool_t on, zb_uint8_t endpoint_invoked);
 static void switch_send_on_off(zb_bufid_t bufid, zb_uint16_t on_off);
-static void configure_reporting_locally();
 
 LOG_MODULE_REGISTER(app);
 
@@ -165,8 +172,29 @@ static void button_changed(uint32_t button_state, uint32_t has_changed)
 		zb_err_code = zb_buf_get_out_delayed_ext(switch_send_on_off, cmd_id, 0);
 		ZB_ERROR_CHECK(zb_err_code);
 
-		LOG_INF("Toggling Completed");
+		LOG_INF("Toggling Completed ");
 	}
+}
+
+void button_pressed(const struct device *dev, struct gpio_callback *cb, uint32_t pins)
+{
+		zb_ret_t zb_err_code;
+		zb_uint16_t cmd_id;
+
+		if(dev_ctx.on_off_attr.on_off)
+		{
+			cmd_id = ZB_ZCL_CMD_ON_OFF_OFF_ID;
+		}
+		else
+		{
+			cmd_id = ZB_ZCL_CMD_ON_OFF_ON_ID;
+		}
+		LOG_INF("Update value of the ONOFF is %d", cmd_id);
+				
+		zb_err_code = zb_buf_get_out_delayed_ext(switch_send_on_off, cmd_id, 0);
+		ZB_ERROR_CHECK(zb_err_code);
+
+	LOG_INF("Button pressed at ");
 }
 
 /**@brief Function for initializing LEDs and Buttons. */
@@ -188,7 +216,7 @@ static void configure_gpio(void)
  */
 static void switch_send_on_off(zb_bufid_t bufid, zb_uint16_t cmd_id)
 {
-	zb_uint16_t coordinator_address = 0x0000;
+	// zb_uint16_t coordinator_address = 0x0000;
 	dev_ctx.on_off_attr.on_off = (zb_bool_t)cmd_id;	
 
 	LOG_INF("Update the ONOFF attribute");
@@ -280,8 +308,8 @@ static void switch_clusters_attr_init(void)
  */
 static void zcl_device_cb(zb_bufid_t bufid)
 {
-	zb_uint8_t cluster_id;
-	zb_uint8_t attr_id;
+	// zb_uint8_t cluster_id;
+	// zb_uint8_t attr_id;
 	zb_uint8_t endpoint_invoked;	
 	zb_zcl_device_callback_param_t  *device_cb_param =
 		ZB_BUF_GET_PARAM(bufid, zb_zcl_device_callback_param_t);
@@ -379,6 +407,12 @@ void main(void)
 
 	/* Initialize */
 	configure_gpio();
+	// Dongle Button Button
+	gpio_pin_configure_dt(&dongleButton, GPIO_INPUT);
+
+	gpio_init_callback(&button_cb_data, button_pressed, BIT(dongleButton.pin));
+	gpio_add_callback(dongleButton.port, &button_cb_data);
+
 	err = settings_subsys_init();
 	if (err) {
 		LOG_ERR("settings initialization failed");
